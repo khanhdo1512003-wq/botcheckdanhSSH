@@ -1,109 +1,117 @@
 import streamlit as st
 import pandas as pd
+from collections import defaultdict
+import math
 
-st.set_page_config(page_title="Fantan Streak Analyzer", layout="centered")
+# ================== CONFIG ==================
+st.set_page_config(page_title="Fantan Pattern Bot", layout="centered")
 
-st.title("🧠 Fantan Streak Analysis Bot (Live Data)")
+st.title("🧠 Fantan Pattern Prediction Bot")
 
-# -------- GOOGLE SHEET CSV --------
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-pPONvbU7PR7FteVtEBvN6EuudQ2rgbV3sHX-Ngy1PALF4nvyTBidXOXXE325_TLKKDJwZB7xFgH/pub?output=csv"
+# ================== LOAD DATA ==================
+DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-pPONvbU7PR7FteVtEBvN6EuudQ2rgbV3sHX-Ngy1PALF4nvyTBidXOXXE325_TLKKDJwZB7xFgH/pub?output=csv"
 
-@st.cache_data(ttl=60)
+@st.cache_data
 def load_data():
-    df = pd.read_csv(CSV_URL)
+    df = pd.read_csv(DATA_URL)
+    return df
+
+df = load_data()
+
+# lấy cột A (cột đầu tiên)
+data = df.iloc[:, 0].dropna().astype(int).tolist()
+
+st.write(f"📊 Tổng data: {len(data)} ván")
+
+# ================== SETTINGS ==================
+min_k = st.slider("Min k", 3, 10, 5)
+max_k = st.slider("Max k", min_k, 20, 12)
+
+# ================== CORE FUNCTION ==================
+def fantan_predict(data, min_k=5, max_k=12):
+    n = len(data)
     
-    # lấy cột đầu tiên (giả sử là kết quả 1-4)
-    col = df.columns[0]
-    data = df[col].dropna().astype(int).tolist()
-    
-    return data
+    k_results = {}
+    final_score = defaultdict(float)
+    final_count = defaultdict(float)
 
-# -------- LOAD DATA --------
-if st.button("🔄 Load / Refresh Data"):
-    st.cache_data.clear()
+    for k in range(min_k, max_k + 1):
+        if k >= n:
+            break
 
-data = load_data()
+        pattern = tuple(data[-k:])
+        counts = defaultdict(int)
+        total_match = 0
 
-st.success(f"Đã load {len(data)} ván")
+        for i in range(n - k):
+            if tuple(data[i:i+k]) == pattern:
+                next_val = data[i+k]
+                counts[next_val] += 1
+                total_match += 1
 
-# -------- RANGE SELECT --------
-col1, col2 = st.columns(2)
-with col1:
-    start_idx = st.number_input("Start index", min_value=0, max_value=len(data)-1, value=0)
-with col2:
-    end_idx = st.number_input("End index", min_value=1, max_value=len(data), value=len(data))
+        # bỏ nhiễu
+        if total_match < 3:
+            continue
 
-run = st.button("🚀 Analyze")
+        k_results[k] = {
+            "match": total_match,
+            "counts": dict(counts)
+        }
 
-# -------- PROCESS --------
-if run:
-    subset = data[start_idx:end_idx]
+        # trọng số
+        weight = (k ** 1.3) * math.log(total_match + 1)
 
-    streak_counts = {}
-    streak_results = {}
+        for num in range(1, 5):
+            c = counts.get(num, 0)
+            final_score[num] += c * weight
+            final_count[num] += c
 
-    i = 0
-    total_profit = 0
-    total_bets = 0
-    wins = 0
-    losses = 0
+    total_score = sum(final_score.values())
 
-    while i < len(subset) - 2:
-        current = subset[i]
-        count = 1
+    final_prob = {}
+    for num in range(1, 5):
+        if total_score > 0:
+            final_prob[num] = round(final_score[num] / total_score * 100, 2)
+        else:
+            final_prob[num] = 0
 
-        # đếm streak
-        while i + count < len(subset) and subset[i + count] == current:
-            count += 1
+    return k_results, final_count, final_prob
 
-        # nếu streak >=2
-        if count >= 2 and i + count < len(subset) - 1:
-            end_value = subset[i + count]
-            next_value = subset[i + count + 1]
 
-            streak_counts[count] = streak_counts.get(count, 0) + 1
+# ================== RUN ==================
+if st.button("🚀 RUN PREDICTION"):
 
-            if next_value != end_value:
-                result = "win"
-                profit = 0.31
-                wins += 1
-            else:
-                result = "lose"
-                profit = -1
-                losses += 1
+    k_results, final_count, final_prob = fantan_predict(data, min_k, max_k)
 
-            total_profit += profit
-            total_bets += 1
+    st.subheader("📌 KẾT QUẢ THEO TỪNG K")
 
-            if count not in streak_results:
-                streak_results[count] = {"win": 0, "lose": 0}
+    for k in sorted(k_results.keys()):
+        res = k_results[k]
+        st.write(f"👉 k = {k} | match = {res['match']}")
 
-            streak_results[count][result] += 1
+        counts = res["counts"]
+        st.write(
+            f"1: {counts.get(1,0)} | "
+            f"2: {counts.get(2,0)} | "
+            f"3: {counts.get(3,0)} | "
+            f"4: {counts.get(4,0)}"
+        )
 
-        i += count
+    st.subheader("🔥 FINAL OUTPUT")
 
-    # -------- OUTPUT --------
-    st.subheader("📊 Tổng quan")
-    st.write(f"Tổng lệnh: {total_bets}")
-    st.write(f"Win: {wins} | Lose: {losses}")
-    if total_bets > 0:
-        st.write(f"Winrate: {wins / total_bets * 100:.2f}%")
-    st.write(f"Profit: {total_profit:.2f}")
+    total_all = sum(final_count.values())
 
-    st.subheader("📈 Phân tích theo streak")
+    for num in range(1, 5):
+        count = int(final_count[num])
+        prob = final_prob[num]
+        st.write(f"{num} → {count} lần | {prob}%")
 
-    table = []
-    for streak in sorted(streak_counts.keys()):
-        total = streak_results[streak]["win"] + streak_results[streak]["lose"]
-        winrate = streak_results[streak]["win"] / total * 100
+    # ================== CONFIDENCE ==================
+    st.subheader("🧠 CONFIDENCE")
 
-        table.append({
-            "Streak": streak,
-            "Số lần xuất hiện": streak_counts[streak],
-            "Win": streak_results[streak]["win"],
-            "Lose": streak_results[streak]["lose"],
-            "Winrate (%)": round(winrate, 2)
-        })
-
-    df = pd.DataFrame(table)
-    st.dataframe(df, use_container_width=True)
+    if total_all < 10:
+        st.warning("⚠️ Dữ liệu yếu (Low Confidence)")
+    elif max(final_prob.values()) < 35:
+        st.info("🟡 Kèo nhiễu (No clear edge)")
+    else:
+        st.success("🟢 Có bias rõ → có thể đánh")
