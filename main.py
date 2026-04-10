@@ -5,7 +5,7 @@ import math
 
 st.set_page_config(page_title="Fantan Bot Pro", layout="centered")
 
-st.title("🔥 FANTAN AI BOT")
+st.title("🔥 FANTAN AI BOT FINAL")
 
 DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-pPONvbU7PR7FteVtEBvN6EuudQ2rgbV3sHX-Ngy1PALF4nvyTBidXOXXE325_TLKKDJwZB7xFgH/pub?output=csv"
 
@@ -28,6 +28,9 @@ if "correct" not in st.session_state:
 
 if "total" not in st.session_state:
     st.session_state.total = 0
+
+if "last_data" not in st.session_state:
+    st.session_state.last_data = []
 
 # ================= LOAD BUTTON =================
 if st.button("☁️ Load Google Sheet"):
@@ -90,11 +93,14 @@ def fantan_predict(data, min_k=5, max_k=12):
 if st.button("🚀 RUN BOT"):
 
     data = parse_data(raw_input)
+    prev_data = st.session_state.last_data
 
     st.write(f"📊 Tổng data: {len(data)}")
 
-    # ===== CHECK WIN/LOSE =====
-    if len(st.session_state.history) > 0 and len(data) > 0:
+    # ===== WINRATE LOGIC CHUẨN =====
+
+    # CASE 1: thêm 1 số
+    if len(data) == len(prev_data) + 1 and len(st.session_state.history) > 0:
         last_real = data[-1]
         last_predict = st.session_state.history[-1]
 
@@ -102,6 +108,45 @@ if st.button("🚀 RUN BOT"):
             st.session_state.correct += 1
 
         st.session_state.total += 1
+
+    # CASE 2: xoá 1 số
+    elif len(data) == len(prev_data) - 1 and st.session_state.total > 0:
+        last_predict = st.session_state.history[-1]
+        last_real = prev_data[-1]
+
+        if last_real in last_predict:
+            st.session_state.correct -= 1
+
+        st.session_state.total -= 1
+        st.session_state.history.pop()
+
+    # CASE 3: sửa số cuối
+    elif len(data) == len(prev_data) and len(data) > 0:
+        if data[-1] != prev_data[-1] and st.session_state.total > 0:
+
+            # rollback
+            last_predict = st.session_state.history[-1]
+            last_real = prev_data[-1]
+
+            if last_real in last_predict:
+                st.session_state.correct -= 1
+
+            st.session_state.total -= 1
+            st.session_state.history.pop()
+
+            # tính lại
+            new_real = data[-1]
+
+            if len(st.session_state.history) > 0:
+                last_predict = st.session_state.history[-1]
+
+                if new_real in last_predict:
+                    st.session_state.correct += 1
+
+                st.session_state.total += 1
+
+    # cập nhật snapshot
+    st.session_state.last_data = data.copy()
 
     # ===== SHOW LAST 15 =====
     st.subheader("📍 15 SỐ GẦN NHẤT")
