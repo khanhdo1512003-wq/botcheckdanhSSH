@@ -5,12 +5,12 @@ import math
 
 st.set_page_config(page_title="Fantan Bot Pro", layout="centered")
 
-st.title("🔥 FANTAN AI BOT FINAL - STABLE")
+st.title("🔥 FANTAN AI BOT FINAL (STABLE + LIVE DATA)")
 
 DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-pPONvbU7PR7FteVtEBvN6EuudQ2rgbV3sHX-Ngy1PALF4nvyTBidXOXXE325_TLKKDJwZB7xFgH/pub?output=csv"
 
-# ================= LOAD =================
-@st.cache_data
+# ================= LOAD DATA (FIX CACHE) =================
+@st.cache_data(ttl=5)
 def load_data():
     df = pd.read_csv(DATA_URL)
     data = df.iloc[:, 0].dropna().astype(int).tolist()
@@ -32,9 +32,17 @@ if "total" not in st.session_state:
 if "last_data" not in st.session_state:
     st.session_state.last_data = None
 
-# ================= LOAD BUTTON =================
-if st.button("☁️ Load Google Sheet"):
-    st.session_state.raw_data = load_data()
+# ================= BUTTON =================
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("☁️ Load Google Sheet"):
+        st.session_state.raw_data = load_data()
+
+with col2:
+    if st.button("♻️ Refresh Data"):
+        st.cache_data.clear()
+        st.success("Đã refresh cache")
 
 # ================= INPUT =================
 st.subheader("📥 DATA INPUT")
@@ -93,7 +101,6 @@ def fantan_predict(data, min_k=5, max_k=12):
 if st.button("🚀 RUN BOT"):
 
     data = parse_data(raw_input)
-
     st.write(f"📊 Tổng data: {len(data)}")
 
     # ===== INIT SNAPSHOT =====
@@ -102,13 +109,12 @@ if st.button("🚀 RUN BOT"):
 
     prev_data = st.session_state.last_data.copy()
 
-    # ===== WINRATE ENGINE (FIX TRIỆT ĐỂ) =====
-
+    # ===== WINRATE ENGINE =====
     if prev_data != data:
 
         diff = len(data) - len(prev_data)
 
-        # ===== CASE 1: THÊM 1 SỐ =====
+        # ➕ thêm 1 số
         if diff == 1 and len(st.session_state.history) > 0:
             last_real = data[-1]
             last_predict = st.session_state.history[-1]
@@ -118,7 +124,7 @@ if st.button("🚀 RUN BOT"):
 
             st.session_state.total += 1
 
-        # ===== CASE 2: XOÁ 1 SỐ =====
+        # ➖ xoá 1 số
         elif diff == -1 and st.session_state.total > 0:
             last_predict = st.session_state.history[-1]
             last_real = prev_data[-1]
@@ -129,7 +135,7 @@ if st.button("🚀 RUN BOT"):
             st.session_state.total -= 1
             st.session_state.history.pop()
 
-        # ===== CASE 3: SỬA SỐ CUỐI =====
+        # ✏️ sửa số cuối
         elif diff == 0 and len(data) > 0:
             if data[-1] != prev_data[-1] and st.session_state.total > 0:
 
@@ -153,24 +159,12 @@ if st.button("🚀 RUN BOT"):
 
                     st.session_state.total += 1
 
-        # ===== CASE KHÁC: IGNORE =====
-
-    # ===== SHOW LAST 15 =====
+    # ===== HIỂN THỊ 15 SỐ =====
     st.subheader("📍 15 SỐ GẦN NHẤT")
     st.code(" ".join(map(str, data[-15:])))
 
     # ===== PREDICT =====
     k_results, final_count, final_prob = fantan_predict(data)
-
-    # ===== K RESULT =====
-    st.subheader("📌 THEO TỪNG K")
-
-    for k in sorted(k_results.keys()):
-        res = k_results[k]
-        c = res["counts"]
-
-        st.write(f"k={k} | match={res['match']}")
-        st.write(f"1:{c.get(1,0)}  2:{c.get(2,0)}  3:{c.get(3,0)}  4:{c.get(4,0)}")
 
     # ===== FINAL =====
     st.subheader("🔥 FINAL")
@@ -187,7 +181,6 @@ if st.button("🚀 RUN BOT"):
     for num, prob in top2:
         st.success(f"{num} → {prob}%")
 
-    # lưu dự đoán
     st.session_state.history.append([num for num, _ in top2])
 
     # ===== WINRATE =====
@@ -214,5 +207,5 @@ if st.button("🚀 RUN BOT"):
     else:
         st.success("🟢 Có bias")
 
-    # ===== UPDATE SNAPSHOT (LUÔN Ở CUỐI) =====
+    # ===== UPDATE SNAPSHOT (CUỐI CÙNG) =====
     st.session_state.last_data = data.copy()
