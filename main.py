@@ -16,24 +16,17 @@ def load_data():
     data = df.iloc[:, 0].dropna().astype(int).tolist()
     return "".join(map(str, data))
 
-# session
 if "raw_data" not in st.session_state:
     st.session_state.raw_data = ""
 
-# ================= BUTTON LOAD =================
 if st.button("☁️ Load từ Google Sheets"):
     st.session_state.raw_data = load_data()
 
-# ================= INPUT BOX =================
+# ================= INPUT =================
 st.subheader("Nhập dữ liệu")
 
-raw_input = st.text_area(
-    "",
-    value=st.session_state.raw_data,
-    height=200
-)
+raw_input = st.text_area("", value=st.session_state.raw_data, height=200)
 
-# ================= CLEAN DATA =================
 def parse_data(text):
     return [int(c) for c in text if c in "1234"]
 
@@ -86,8 +79,12 @@ def fantan_predict(data, min_k=5, max_k=12):
 if st.button("📊 Phân tích"):
 
     data = parse_data(raw_input)
-
     st.write(f"📊 Tổng data: {len(data)}")
+
+    # ===== HIỆN 15 SỐ GẦN NHẤT =====
+    st.subheader("📍 Chuỗi hiện tại (15 số gần nhất)")
+    last_15 = data[-15:]
+    st.code(" ".join(map(str, last_15)))
 
     k_results, final_count, final_prob = fantan_predict(data)
 
@@ -106,6 +103,16 @@ if st.button("📊 Phân tích"):
 
     for num in range(1, 5):
         st.write(f"{num} → {int(final_count[num])} lần | {final_prob[num]}%")
+
+    # ===== TOP 2 =====
+    st.subheader("🎯 TOP 2 NÊN ĐÁNH")
+
+    sorted_nums = sorted(final_prob.items(), key=lambda x: x[1], reverse=True)
+
+    top2 = sorted_nums[:2]
+
+    for num, prob in top2:
+        st.success(f"{num} → {prob}%")
 
     # ===== CONFIDENCE =====
     st.subheader("🧠 Đánh giá")
