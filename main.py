@@ -3,67 +3,41 @@ import pandas as pd
 from collections import defaultdict
 import math
 
-st.set_page_config(page_title="Fantan Bot Pro", layout="wide")
+st.set_page_config(page_title="Fantan Bot", layout="centered")
 
-st.title("🧠 Fantan Pattern Bot PRO")
+st.title("🔥 V43 FINAL BOT")
 
-# ================== LOAD DATA ==================
 DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-pPONvbU7PR7FteVtEBvN6EuudQ2rgbV3sHX-Ngy1PALF4nvyTBidXOXXE325_TLKKDJwZB7xFgH/pub?output=csv"
 
+# ================= LOAD =================
 @st.cache_data
 def load_data():
     df = pd.read_csv(DATA_URL)
-    return df.iloc[:, 0].dropna().astype(int).tolist()
+    data = df.iloc[:, 0].dropna().astype(int).tolist()
+    return "".join(map(str, data))
 
-# session lưu data
-if "data" not in st.session_state:
-    st.session_state.data = load_data()
+# session
+if "raw_data" not in st.session_state:
+    st.session_state.raw_data = ""
 
-data = st.session_state.data
+# ================= BUTTON LOAD =================
+if st.button("☁️ Load từ Google Sheets"):
+    st.session_state.raw_data = load_data()
 
-# ================== LAYOUT ==================
-col1, col2 = st.columns([2,1])
+# ================= INPUT BOX =================
+st.subheader("Nhập dữ liệu")
 
-# ================== DATA TABLE ==================
-with col1:
-    st.subheader("📊 DATA HIỆN TẠI")
+raw_input = st.text_area(
+    "",
+    value=st.session_state.raw_data,
+    height=200
+)
 
-    df_display = pd.DataFrame({"Result": data[::-1]})
-    st.dataframe(df_display, height=400)
+# ================= CLEAN DATA =================
+def parse_data(text):
+    return [int(c) for c in text if c in "1234"]
 
-    st.write(f"🔢 Tổng: {len(data)} ván")
-
-# ================== INPUT ==================
-with col2:
-    st.subheader("➕ THÊM DATA")
-
-    new_input = st.text_input("Nhập số (1-4), cách nhau bằng dấu cách", "")
-
-    if st.button("ADD DATA"):
-        try:
-            nums = [int(x) for x in new_input.split()]
-            nums = [x for x in nums if x in [1,2,3,4]]
-
-            st.session_state.data.extend(nums)
-            st.success(f"Đã thêm {len(nums)} số")
-
-        except:
-            st.error("Input lỗi")
-
-    if st.button("🔄 RESET DATA"):
-        st.session_state.data = load_data()
-        st.success("Đã reset về dữ liệu gốc")
-
-# ================== SETTINGS ==================
-st.subheader("⚙️ SETTINGS")
-
-col3, col4 = st.columns(2)
-with col3:
-    min_k = st.slider("Min k", 3, 10, 5)
-with col4:
-    max_k = st.slider("Max k", min_k, 20, 12)
-
-# ================== CORE ==================
+# ================= CORE =================
 def fantan_predict(data, min_k=5, max_k=12):
     n = len(data)
     
@@ -104,53 +78,43 @@ def fantan_predict(data, min_k=5, max_k=12):
 
     final_prob = {}
     for num in range(1, 5):
-        if total_score > 0:
-            final_prob[num] = round(final_score[num] / total_score * 100, 2)
-        else:
-            final_prob[num] = 0
+        final_prob[num] = round((final_score[num] / total_score * 100), 2) if total_score > 0 else 0
 
     return k_results, final_count, final_prob
 
-# ================== RUN ==================
-st.subheader("🚀 PREDICTION")
+# ================= RUN =================
+if st.button("📊 Phân tích"):
 
-if st.button("RUN BOT"):
+    data = parse_data(raw_input)
 
-    k_results, final_count, final_prob = fantan_predict(data, min_k, max_k)
+    st.write(f"📊 Tổng data: {len(data)}")
 
-    colA, colB = st.columns(2)
+    k_results, final_count, final_prob = fantan_predict(data)
 
-    # ===== K RESULTS =====
-    with colA:
-        st.subheader("📌 THEO TỪNG K")
+    # ===== K RESULT =====
+    st.subheader("📌 Theo từng k")
 
-        for k in sorted(k_results.keys()):
-            res = k_results[k]
-            counts = res["counts"]
+    for k in sorted(k_results.keys()):
+        res = k_results[k]
+        c = res["counts"]
 
-            st.write(f"👉 k={k} | match={res['match']}")
-            st.write(
-                f"1:{counts.get(1,0)} | "
-                f"2:{counts.get(2,0)} | "
-                f"3:{counts.get(3,0)} | "
-                f"4:{counts.get(4,0)}"
-            )
+        st.write(f"k={k} | match={res['match']}")
+        st.write(f"1:{c.get(1,0)}  2:{c.get(2,0)}  3:{c.get(3,0)}  4:{c.get(4,0)}")
 
     # ===== FINAL =====
-    with colB:
-        st.subheader("🔥 FINAL")
+    st.subheader("🔥 FINAL")
 
-        total_all = sum(final_count.values())
+    for num in range(1, 5):
+        st.write(f"{num} → {int(final_count[num])} lần | {final_prob[num]}%")
 
-        for num in range(1,5):
-            st.write(f"{num} → {int(final_count[num])} lần | {final_prob[num]}%")
+    # ===== CONFIDENCE =====
+    st.subheader("🧠 Đánh giá")
 
-        # ===== CONFIDENCE =====
-        st.subheader("🧠 CONFIDENCE")
+    total_all = sum(final_count.values())
 
-        if total_all < 10:
-            st.warning("⚠️ Yếu")
-        elif max(final_prob.values()) < 35:
-            st.info("🟡 Nhiễu")
-        else:
-            st.success("🟢 Có bias")
+    if total_all < 10:
+        st.warning("⚠️ Data yếu")
+    elif max(final_prob.values()) < 35:
+        st.info("🟡 Không có lợi thế rõ")
+    else:
+        st.success("🟢 Có bias")
