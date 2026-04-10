@@ -5,11 +5,11 @@ import math
 
 st.set_page_config(page_title="Fantan Bot Pro", layout="centered")
 
-st.title("🔥 FANTAN AI BOT FINAL (STABLE + LIVE DATA)")
+st.title("🔥 FANTAN AI BOT FINAL (FULL + K OUTPUT)")
 
 DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5-pPONvbU7PR7FteVtEBvN6EuudQ2rgbV3sHX-Ngy1PALF4nvyTBidXOXXE325_TLKKDJwZB7xFgH/pub?output=csv"
 
-# ================= LOAD DATA (FIX CACHE) =================
+# ================= LOAD DATA =================
 @st.cache_data(ttl=5)
 def load_data():
     df = pd.read_csv(DATA_URL)
@@ -109,12 +109,11 @@ if st.button("🚀 RUN BOT"):
 
     prev_data = st.session_state.last_data.copy()
 
-    # ===== WINRATE ENGINE =====
+    # ===== WINRATE =====
     if prev_data != data:
 
         diff = len(data) - len(prev_data)
 
-        # ➕ thêm 1 số
         if diff == 1 and len(st.session_state.history) > 0:
             last_real = data[-1]
             last_predict = st.session_state.history[-1]
@@ -124,7 +123,6 @@ if st.button("🚀 RUN BOT"):
 
             st.session_state.total += 1
 
-        # ➖ xoá 1 số
         elif diff == -1 and st.session_state.total > 0:
             last_predict = st.session_state.history[-1]
             last_real = prev_data[-1]
@@ -135,11 +133,9 @@ if st.button("🚀 RUN BOT"):
             st.session_state.total -= 1
             st.session_state.history.pop()
 
-        # ✏️ sửa số cuối
         elif diff == 0 and len(data) > 0:
             if data[-1] != prev_data[-1] and st.session_state.total > 0:
 
-                # rollback
                 last_predict = st.session_state.history[-1]
                 last_real = prev_data[-1]
 
@@ -149,7 +145,6 @@ if st.button("🚀 RUN BOT"):
                 st.session_state.total -= 1
                 st.session_state.history.pop()
 
-                # tính lại
                 if len(st.session_state.history) > 0:
                     last_predict = st.session_state.history[-1]
                     new_real = data[-1]
@@ -159,12 +154,30 @@ if st.button("🚀 RUN BOT"):
 
                     st.session_state.total += 1
 
-    # ===== HIỂN THỊ 15 SỐ =====
+    # ===== LAST 15 =====
     st.subheader("📍 15 SỐ GẦN NHẤT")
     st.code(" ".join(map(str, data[-15:])))
 
     # ===== PREDICT =====
     k_results, final_count, final_prob = fantan_predict(data)
+
+    # ===== K OUTPUT =====
+    st.subheader("📌 PHÂN TÍCH THEO K")
+
+    if len(k_results) == 0:
+        st.write("Không có pattern đủ mạnh")
+    else:
+        for k in sorted(k_results.keys()):
+            res = k_results[k]
+            c = res["counts"]
+
+            st.markdown(f"**k = {k} | match = {res['match']}**")
+            st.write(
+                f"1: {c.get(1,0)} | "
+                f"2: {c.get(2,0)} | "
+                f"3: {c.get(3,0)} | "
+                f"4: {c.get(4,0)}"
+            )
 
     # ===== FINAL =====
     st.subheader("🔥 FINAL")
@@ -207,5 +220,5 @@ if st.button("🚀 RUN BOT"):
     else:
         st.success("🟢 Có bias")
 
-    # ===== UPDATE SNAPSHOT (CUỐI CÙNG) =====
+    # ===== UPDATE SNAPSHOT =====
     st.session_state.last_data = data.copy()
